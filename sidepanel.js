@@ -24,6 +24,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
+  // Define Zod schema for JavaScript code validation - use the global Zod object
+  const jsCodeSchema = Zod.object({
+    type: Zod.literal("javascript_code"),
+    code: Zod.string().describe("A valid JavaScript code snippet")
+  });
+  
   // Save API key to storage
   saveApiKeyBtn.addEventListener('click', function() {
     const apiKey = apiKeyInput.value.trim();
@@ -423,7 +429,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   async function generateEarthEngineCode(prompt, apiKey) {
     const enhancedPrompt = `Generate Google Earth Engine JavaScript code for the following task. 
-    As a professional mapper fluent with google earth engine javascript coding. Only provide the code without explanations. Make sure it's complete, working JavaScript that can be copied and pasted directly without any modifications in the Earth Engine Code Editor:
+    As a professional mapper fluent with google earth engine javascript coding. Format your response as a JSON object with "type": "javascript_code" and "code" containing the JavaScript code.
+    Make sure it's complete, working JavaScript that can be copied and pasted directly without any modifications in the Earth Engine Code Editor:
     Please make sure you handle the minimum and the maximum of the values. Use the latest and most updated version of the earth engine api. Use the best and most updated database. 
     
     ${prompt}`;
@@ -440,13 +447,14 @@ document.addEventListener('DOMContentLoaded', function() {
           messages: [
             {
               role: 'system',
-              content: 'You are an expert in Google Earth Engine programming. Provide only working JavaScript code for the Earth Engine Code Editor without explanations or markdown formatting.'
+              content: 'You are an expert in Google Earth Engine programming. Provide working JavaScript code for the Earth Engine Code Editor as a JSON object with "type": "javascript_code" and "code" containing the JavaScript code. Do not include explanations or markdown formatting in the code.'
             },
             {
               role: 'user',
               content: enhancedPrompt
             }
           ],
+          response_format: { type: "json_object" },
           temperature: 0.7,
           max_tokens: 2048
         })
@@ -458,10 +466,38 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       const data = await response.json();
-      return data.choices[0].message.content.trim();
+      const content = data.choices[0].message.content.trim();
+      
+      try {
+        // Parse the content as JSON
+        const jsonResponse = JSON.parse(content);
+        
+        // Validate against the schema using the global Zod object
+        const result = jsCodeSchema.safeParse(jsonResponse);
+        
+        if (result.success) {
+          // Return just the code part if validation succeeds
+          return result.data.code;
+        } else {
+          console.warn('Schema validation failed:', result.error);
+          
+          // Attempt to extract code if it exists but validation failed
+          if (jsonResponse.code && typeof jsonResponse.code === 'string') {
+            return jsonResponse.code;
+          } else if (typeof content === 'string') {
+            // Fallback: return the original content if parsing succeeded but validation failed
+            return content;
+          }
+          throw new Error('Response format was invalid');
+        }
+      } catch (parseError) {
+        console.warn('Failed to parse JSON response:', parseError);
+        // Fallback: return the original content if parsing failed
+        return content;
+      }
     } catch (error) {
       console.error('Error calling OpenAI API:', error);
       throw error;
     }
   }
-}); 
+});

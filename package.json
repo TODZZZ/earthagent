@@ -1,0 +1,23 @@
+{
+  "name": "earthagent",
+  "version": "1.0.0",
+  "description": "This Chrome extension uses OpenAI to generate Google Earth Engine JavaScript code based on natural language prompts.",
+  "main": "background.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TODZZZ/earthagent.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/TODZZZ/earthagent/issues"
+  },
+  "homepage": "https://github.com/TODZZZ/earthagent#readme",
+  "dependencies": {
+    "zod": "^3.24.2"
+  }
+}
