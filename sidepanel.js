@@ -6,14 +6,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const codeOutput = document.getElementById('codeOutput');
   const copyBtn = document.getElementById('copyBtn');
   const clearBtn = document.getElementById('clearBtn');
+  const injectCodeBtn = document.getElementById('injectCodeBtn');
   const spinner = document.getElementById('spinner');
-  const validationToggle = document.getElementById('validationToggle');
-  const validationStatus = document.getElementById('validationStatus');
-  const statusText = document.getElementById('statusText');
   
   // Global variables
-  const VALIDATION_SERVER_URL = 'http://localhost:5000/validate';
-  let validationEnabled = false; // Default to false
+  const EARTH_ENGINE_EDITOR_URL = 'https://code.earthengine.google.com/';
   
   // Try to load API key from config.js first, then from storage
   if (typeof config !== 'undefined' && config.OPENAI_API_KEY && config.OPENAI_API_KEY !== "your-api-key-here") {
@@ -24,55 +21,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (result.openai_api_key) {
         apiKeyInput.value = result.openai_api_key;
       }
-    });
-  }
-  
-  // Load validation setting from storage
-  chrome.storage.sync.get(['validation_enabled'], function(result) {
-    if (result.validation_enabled !== undefined) {
-      validationEnabled = result.validation_enabled;
-      validationToggle.checked = validationEnabled;
-    }
-    // Check if validation server is available
-    checkValidationServer();
-  });
-  
-  // Toggle validation on/off
-  validationToggle.addEventListener('change', function() {
-    validationEnabled = this.checked;
-    chrome.storage.sync.set({ 'validation_enabled': validationEnabled });
-    
-    if (validationEnabled) {
-      checkValidationServer();
-    } else {
-      validationStatus.style.display = 'none';
-    }
-  });
-  
-  // Check if validation server is running
-  function checkValidationServer() {
-    validationStatus.style.display = 'block';
-    statusText.textContent = 'Checking...';
-    
-    fetch(VALIDATION_SERVER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ code: '// test' })
-    })
-    .then(response => {
-      if (response.ok) {
-        statusText.textContent = 'Connected';
-        statusText.style.color = 'green';
-      } else {
-        throw new Error('Server error');
-      }
-    })
-    .catch(error => {
-      statusText.textContent = 'Not available (using fallback validation)';
-      statusText.style.color = 'orange';
-      console.error('Validation server error:', error);
     });
   }
   
@@ -111,18 +59,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Call OpenAI API
     generateEarthEngineCode(prompt, apiKey)
       .then(code => {
-        if (validationEnabled) {
-          return validateCode(code);
-        } else {
-          return { valid: true, code: code };
-        }
-      })
-      .then(result => {
-        if (result.valid) {
-          codeOutput.value = result.code;
-        } else {
-          codeOutput.value = `Error: ${result.error}\n\nOriginal code:\n${result.originalCode}`;
-        }
+        codeOutput.value = code;
       })
       .catch(error => {
         codeOutput.value = `Error: ${error.message}`;
@@ -142,6 +79,330 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
+  // Inject code directly into Earth Engine editor
+  injectCodeBtn.addEventListener('click', function() {
+    const code = codeOutput.value.trim();
+    if (!code) {
+      alert('No code to inject. Please generate code first.');
+      return;
+    }
+    
+    // Show spinner while injecting
+    injectCodeBtn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    // Get the active tab
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      const activeTab = tabs[0];
+      
+      // Check if we're on the Earth Engine Code Editor page
+      if (activeTab && activeTab.url && activeTab.url.startsWith(EARTH_ENGINE_EDITOR_URL)) {
+        // Inject the code into the Earth Engine editor
+        waitForEarthEngineEditor(activeTab.id, code, finishInjection);
+      } else {
+        // If not on Earth Engine, open a new tab
+        chrome.tabs.create({url: EARTH_ENGINE_EDITOR_URL}, function(newTab) {
+          // Wait for the page to load before injecting
+          chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+            if (tabId === newTab.id && changeInfo.status === 'complete') {
+              // Remove the listener to avoid multiple injections
+              chrome.tabs.onUpdated.removeListener(listener);
+              
+              // Wait longer for the Earth Engine editor to initialize
+              waitForEarthEngineEditor(newTab.id, code, finishInjection);
+            }
+          });
+        });
+      }
+    });
+  });
+  
+  // Callback function to reset UI after injection attempt
+  function finishInjection(success) {
+    injectCodeBtn.disabled = false;
+    spinner.style.display = 'none';
+    
+    if (success) {
+      // Update with success message
+      console.log('Code successfully injected into Earth Engine editor');
+    }
+  }
+  
+  // Wait for Earth Engine editor to be fully loaded
+  function waitForEarthEngineEditor(tabId, code, callback) {
+    const MAX_ATTEMPTS = 30; // Try for up to 30 seconds
+    const ATTEMPT_INTERVAL = 1000; // Check every second
+    let attempts = 0;
+    
+    // First check if user is authenticated
+    checkEarthEngineAuth(tabId).then(isAuthenticated => {
+      if (!isAuthenticated) {
+        alert('Please sign in to Earth Engine first. After signing in, try injecting the code again.');
+        if (callback) callback(false);
+        return;
+      }
+      
+      // Start checking for editor readiness
+      const checkInterval = setInterval(() => {
+        attempts++;
+        
+        if (attempts > MAX_ATTEMPTS) {
+          clearInterval(checkInterval);
+          alert('Could not find the Earth Engine editor after multiple attempts. Please make sure Earth Engine is fully loaded and try again.');
+          if (callback) callback(false);
+          return;
+        }
+        
+        // Check if editor is ready
+        chrome.scripting.executeScript({
+          target: {tabId: tabId},
+          func: isEarthEngineEditorReady
+        })
+        .then(results => {
+          if (results && results[0] && results[0].result === true) {
+            clearInterval(checkInterval);
+            console.log(`Earth Engine editor found after ${attempts} attempts`);
+            
+            // Now try to inject the code
+            injectCodeIntoEditor(tabId, code, callback);
+          } else {
+            console.log(`Waiting for Earth Engine editor (attempt ${attempts}/${MAX_ATTEMPTS})...`);
+          }
+        })
+        .catch(err => {
+          console.error('Error checking for editor:', err);
+        });
+      }, ATTEMPT_INTERVAL);
+    });
+  }
+  
+  // Check if Earth Engine editor is ready
+  function isEarthEngineEditorReady() {
+    try {
+      // Check for various editor elements
+      const aceEditors = document.querySelectorAll('.ace_editor');
+      const codeMirrors = document.querySelectorAll('.CodeMirror');
+      const earthEngineApp = document.querySelector('#playground-contents');
+      const codeEditor = document.querySelector('#code-editor');
+      
+      // Look for the playground-specific elements
+      if (earthEngineApp && (aceEditors.length > 0 || codeMirrors.length > 0 || codeEditor)) {
+        // Additional check: make sure the page has fully rendered
+        const loadingIndicator = document.querySelector('.loading-indicator');
+        if (loadingIndicator && loadingIndicator.style.display !== 'none') {
+          return false; // Still loading
+        }
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking editor readiness:', error);
+      return false;
+    }
+  }
+  
+  // Check if the user is authenticated in Earth Engine
+  function checkEarthEngineAuth(tabId) {
+    return new Promise((resolve) => {
+      chrome.scripting.executeScript({
+        target: {tabId: tabId},
+        func: () => {
+          try {
+            // Check for login-related elements
+            const isSignInPage = document.querySelector('.signin-panel') !== null;
+            const needsAuth = document.querySelector('.goog-buttonset-default') !== null && 
+                            document.querySelector('.signin-panel') !== null;
+            
+            // If we detect sign-in elements, the user is not authenticated
+            return !needsAuth && !isSignInPage;
+          } catch (e) {
+            console.error('Error checking auth:', e);
+            return false; // Assume not authenticated if we can't check
+          }
+        }
+      })
+      .then(results => {
+        if (results && results[0]) {
+          resolve(results[0].result);
+        } else {
+          resolve(false);
+        }
+      })
+      .catch(err => {
+        console.error('Error checking authentication:', err);
+        resolve(false);
+      });
+    });
+  }
+  
+  // Function to inject code into the Earth Engine editor
+  function injectCodeIntoEditor(tabId, code, callback) {
+    // Inject script to write to the Earth Engine Code Editor
+    chrome.scripting.executeScript({
+      target: {tabId: tabId},
+      func: injectCodeFunction,
+      args: [code]
+    })
+    .then((results) => {
+      if (results && results[0] && results[0].result === true) {
+        console.log('Code injected successfully');
+        if (callback) callback(true);
+      } else {
+        console.error('Failed to inject code');
+        alert('Failed to inject code. The editor might be in a different state than expected. Try again or use the copy button instead.');
+        if (callback) callback(false);
+      }
+    })
+    .catch(err => {
+      console.error('Error injecting code:', err);
+      if (callback) callback(false);
+      alert('Failed to inject code: ' + err.message);
+    });
+  }
+  
+  // Function that runs in the context of the Earth Engine tab
+  function injectCodeFunction(code) {
+    try {
+      console.log("Attempting to inject code into Earth Engine editor");
+      
+      // Method 1: Try to use the CodeEditor directly if it exists in window
+      if (window.Code && window.Code.setCode) {
+        console.log("Using Code.setCode method");
+        window.Code.setCode(code);
+        return true;
+      }
+      
+      // Method 2: Try ACE editor
+      const aceEditors = document.querySelectorAll('.ace_editor');
+      if (aceEditors.length > 0) {
+        console.log("Found ACE editor, attempting to use it");
+        
+        // Try multiple ways to get the editor instance
+        for (const editorElement of aceEditors) {
+          // Try the common ways to access Ace editor
+          try {
+            const aceEditor = editorElement.env?.editor || 
+                            window.ace?.edit(editorElement) || 
+                            editorElement.aceEditor;
+            
+            if (aceEditor && typeof aceEditor.setValue === 'function') {
+              console.log("Found valid Ace editor instance");
+              aceEditor.setValue(code);
+              aceEditor.clearSelection();
+              return true;
+            }
+          } catch (e) {
+            console.warn("Error accessing Ace editor:", e);
+          }
+        }
+      }
+      
+      // Method 3: Try CodeMirror
+      const codeMirrors = document.querySelectorAll('.CodeMirror');
+      if (codeMirrors.length > 0) {
+        console.log("Found CodeMirror, attempting to use it");
+        
+        for (const cm of codeMirrors) {
+          if (cm.CodeMirror) {
+            cm.CodeMirror.setValue(code);
+            return true;
+          }
+        }
+      }
+      
+      // Method 4: Try to find the script editor textarea
+      const scriptTextareas = document.querySelectorAll('textarea.ace_text-input, textarea.code-editor');
+      if (scriptTextareas.length > 0) {
+        console.log("Found script textarea, using direct input");
+        
+        const textarea = scriptTextareas[0];
+        textarea.focus();
+        textarea.value = code;
+        
+        // Try to trigger change events
+        const event = new Event('input', { bubbles: true });
+        textarea.dispatchEvent(event);
+        
+        return true;
+      }
+      
+      // Method 5: Look for Earth Engine specific elements and try to find editor
+      const codeEditor = document.getElementById('code-editor');
+      if (codeEditor) {
+        console.log("Found code-editor element, trying to access editor");
+        
+        // Try to get any available code editor from global variables
+        const possibleEditorVars = [
+          'earthEngineCodeEditor', 
+          'codeEditor', 
+          'editor',
+          'playground'
+        ];
+        
+        for (const varName of possibleEditorVars) {
+          if (window[varName] && typeof window[varName].setValue === 'function') {
+            console.log(`Found editor in window.${varName}`);
+            window[varName].setValue(code);
+            return true;
+          }
+        }
+        
+        // If we found the element but couldn't get the editor instance
+        // try to inject code via DOM manipulation
+        try {
+          // Try to find any visible editor content
+          const editorContent = codeEditor.querySelector('.ace_content, .CodeMirror-code');
+          if (editorContent) {
+            // Use exec command as a last resort
+            document.execCommand('selectAll', false, null);
+            document.execCommand('delete', false, null);
+            document.execCommand('insertText', false, code);
+            return true;
+          }
+        } catch (e) {
+          console.warn("DOM manipulation failed:", e);
+        }
+      }
+      
+      // Method 6: Ultimate fallback - try to simulate keyboard input
+      try {
+        console.log("Using clipboard and keyboard simulation as last resort");
+        // Copy to clipboard
+        const originalClipboard = navigator.clipboard.readText();
+        navigator.clipboard.writeText(code);
+        
+        // Try to find any editor element to focus
+        const focusTargets = document.querySelectorAll('.ace_editor, .CodeMirror, #code-editor, .ace_text-input');
+        if (focusTargets.length > 0) {
+          focusTargets[0].focus();
+          
+          // Simulate Ctrl+A and then Ctrl+V
+          document.execCommand('selectAll');
+          document.execCommand('paste');
+          
+          // Restore original clipboard
+          setTimeout(() => {
+            if (originalClipboard) {
+              navigator.clipboard.writeText(originalClipboard);
+            }
+          }, 500);
+          
+          return true;
+        }
+      } catch (e) {
+        console.warn("Clipboard fallback failed:", e);
+      }
+      
+      console.error("All injection methods failed");
+      return false;
+    } catch (error) {
+      console.error('Error injecting into editor:', error);
+      return false;
+    }
+  }
+  
   // Clear the output
   clearBtn.addEventListener('click', function() {
     codeOutput.value = '';
@@ -160,86 +421,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Validate code using the Pydantic validation server
-  async function validateCode(code) {
-    try {
-      const response = await fetch(VALIDATION_SERVER_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ code: code })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        return {
-          valid: false,
-          error: data.error || 'Validation server error',
-          originalCode: code
-        };
-      }
-      
-      return {
-        valid: true,
-        code: data.code
-      };
-    } catch (error) {
-      console.error('Validation error:', error);
-      // If validation server is unavailable, perform basic fallback validation
-      return performFallbackValidation(code);
-    }
-  }
-  
-  // Simple client-side validation as a fallback
-  function performFallbackValidation(code) {
-    try {
-      // Basic check for JavaScript syntax
-      if (!/[{};()=]/.test(code)) {
-        return {
-          valid: false,
-          error: 'Code does not appear to be valid JavaScript',
-          originalCode: code
-        };
-      }
-      
-      // Check for Earth Engine patterns
-      const eePatterns = [
-        'ee.Image',
-        'ee.FeatureCollection',
-        'ee.Geometry',
-        'ee.Reducer',
-        'Map.addLayer',
-        'ee.Filter',
-        'ee.Date'
-      ];
-      
-      const hasEarthEngineCode = eePatterns.some(pattern => code.includes(pattern));
-      
-      if (!hasEarthEngineCode) {
-        return {
-          valid: false,
-          error: 'Code does not appear to contain Earth Engine JavaScript',
-          originalCode: code
-        };
-      }
-      
-      return {
-        valid: true,
-        code: code
-      };
-    } catch (e) {
-      return {
-        valid: true, // Allow it to pass if our fallback validation fails
-        code: code
-      };
-    }
-  }
-  
   async function generateEarthEngineCode(prompt, apiKey) {
     const enhancedPrompt = `Generate Google Earth Engine JavaScript code for the following task. 
-    Only provide the code without explanations. Make sure it's complete, working JavaScript that can be used directly in the Earth Engine Code Editor:
+    As a professional mapper fluent with google earth engine javascript coding. Only provide the code without explanations. Make sure it's complete, working JavaScript that can be copied and pasted directly without any modifications in the Earth Engine Code Editor:
+    Please make sure you handle the minimum and the maximum of the values. Use the latest and most updated version of the earth engine api. Use the best and most updated database. 
     
     ${prompt}`;
     
@@ -251,7 +436,7 @@ document.addEventListener('DOMContentLoaded', function() {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4o',
           messages: [
             {
               role: 'system',

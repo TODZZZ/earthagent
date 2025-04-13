@@ -95,6 +95,7 @@
     .button-row {
       display: flex;
       justify-content: space-between;
+      flex-wrap: wrap;
     }
     .section {
       margin-bottom: 15px;
@@ -105,60 +106,16 @@
       flex: 1;
       overflow: hidden;
     }
-    .toggle-container {
-      display: flex;
-      align-items: center;
-      margin-top: 10px;
+    .action-button {
+      flex: 1;
+      margin: 5px;
+      max-width: calc(50% - 10px);
     }
-    .toggle-label {
-      margin-left: 8px;
-      font-size: 13px;
-      font-weight: normal;
+    #injectCodeBtn {
+      background-color: #34a853;
     }
-    .toggle {
-      position: relative;
-      display: inline-block;
-      width: 40px;
-      height: 20px;
-    }
-    .toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    .toggle-slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: #ccc;
-      transition: .4s;
-      border-radius: 34px;
-    }
-    .toggle-slider:before {
-      position: absolute;
-      content: "";
-      height: 16px;
-      width: 16px;
-      left: 2px;
-      bottom: 2px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
-    input:checked + .toggle-slider {
-      background-color: #4285f4;
-    }
-    input:checked + .toggle-slider:before {
-      transform: translateX(20px);
-    }
-    .status-indicator {
-      display: none;
-      font-size: 12px;
-      font-style: italic;
-      margin-top: 5px;
+    #injectCodeBtn:hover {
+      background-color: #2d9348;
     }
   </style>
 </head>
@@ -175,16 +132,6 @@
     <div class="section">
       <label for="prompt">Describe the Earth Engine code you need:</label>
       <textarea id="prompt" placeholder="Example: 'Create a NDVI visualization for Landsat 8 imagery over San Francisco for the year 2022'"></textarea>
-      <div class="toggle-container">
-        <label class="toggle">
-          <input type="checkbox" id="validationToggle">
-          <span class="toggle-slider"></span>
-        </label>
-        <span class="toggle-label">Use Pydantic validation for JavaScript code</span>
-      </div>
-      <div id="validationStatus" class="status-indicator">
-        Validation server status: <span id="statusText">Checking...</span>
-      </div>
       <button id="generateBtn">Generate Code <span id="spinner" class="spinner"></span></button>
     </div>
     
@@ -192,8 +139,9 @@
       <label for="codeOutput">Generated Earth Engine Code:</label>
       <textarea id="codeOutput" readonly></textarea>
       <div class="button-row">
-        <button id="copyBtn">Copy to Clipboard</button>
-        <button id="clearBtn">Clear</button>
+        <button id="copyBtn" class="action-button">Copy to Clipboard</button>
+        <button id="injectCodeBtn" class="action-button">Inject into Editor</button>
+        <button id="clearBtn" class="action-button">Clear</button>
       </div>
     </div>
   </div>

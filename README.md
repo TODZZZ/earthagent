@@ -8,7 +8,7 @@ This Chrome extension uses OpenAI to generate Google Earth Engine JavaScript cod
 - Appears as a convenient sidebar in your browser
 - Saves your API key securely in Chrome's storage sync
 - Generates ready-to-use JavaScript code for Google Earth Engine
-- Validates code using Pydantic (optional)
+- Directly injects generated code into the Earth Engine Code Editor
 - Easily copies generated code to clipboard
 
 ## Prerequisites
@@ -16,7 +16,6 @@ This Chrome extension uses OpenAI to generate Google Earth Engine JavaScript cod
 - A Google Chrome browser
 - An OpenAI API key ([get one here](https://platform.openai.com/account/api-keys))
 - Basic familiarity with Google Earth Engine
-- Python 3.9+ (optional, for code validation)
 
 ## Installation
 
@@ -29,30 +28,25 @@ This Chrome extension uses OpenAI to generate Google Earth Engine JavaScript cod
 5. Click "Load unpacked" and select the folder containing this extension
 6. The Earth Engine Code Generator extension should now appear in your extensions list
 
-### Optional: Setting up Pydantic validation server
-
-For enhanced JavaScript validation using Pydantic:
-
-1. Make sure Python 3.9+ is installed
-2. Install the required Python packages:
-   ```
-   pip install -r requirements.txt
-   ```
-3. Start the validation server:
-   ```
-   python server.py
-   ```
-4. Enable validation in the extension's sidebar UI
-
 ## Usage
 
 1. Click the extension icon in your Chrome toolbar to open the sidebar
 2. If you haven't added your API key to config.js, enter it in the sidebar and click "Save Key"
 3. Type a description of the Earth Engine code you need
-4. Toggle the Pydantic validation option if you want to validate the generated code
-5. Click "Generate Code" and wait for the response
-6. Review the generated code
-7. Click "Copy to Clipboard" to use the code in the Earth Engine Code Editor
+4. Click "Generate Code" and wait for the response
+5. Review the generated code
+6. Choose one of the following options:
+   - Click "Inject into Editor" to directly insert the code into the Earth Engine Code Editor
+   - Click "Copy to Clipboard" to manually paste the code
+   - Click "Clear" to start over
+
+## Direct Code Injection
+
+The extension can insert generated code directly into the Earth Engine Code Editor:
+
+- **Same-tab injection**: If you already have the Earth Engine Code Editor open, clicking "Inject into Editor" will insert the code into the current editor
+- **New-tab injection**: If the Code Editor isn't already open, clicking "Inject into Editor" will open it in a new tab and insert the code
+- **Requires permissions**: This feature requires the extension to have permission to access and modify the Earth Engine website
 
 ## API Key Configuration
 
@@ -65,14 +59,6 @@ You can provide your OpenAI API key in two ways:
 2. **UI Storage**:
    - Enter your API key in the sidebar interface
    - Click "Save" to store it in Chrome's secure storage
-
-## Pydantic Validation
-
-The extension can use [Pydantic](https://docs.pydantic.dev/), a powerful Python data validation library, to validate the generated JavaScript code:
-
-- **How it works**: The validation server checks if the code is valid JavaScript and specifically Earth Engine JavaScript
-- **Fallback**: If the Python server is not running, a simple JavaScript-based validation will be used
-- **Toggle**: You can enable/disable validation in the sidebar UI
 
 ## Examples
 

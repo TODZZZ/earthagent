@@ -14,8 +14,22 @@
       "128": "images/icon128.png"
     }
   },
-  "permissions": ["offscreen", "clipboardWrite", "storage", "sidePanel"],
-  "host_permissions": ["https://api.openai.com/*"],
+  "permissions": [
+    "offscreen", 
+    "clipboardWrite", 
+    "storage", 
+    "sidePanel", 
+    "scripting",
+    "tabs",
+    "activeTab",
+    "clipboardRead"
+  ],
+  "host_permissions": [
+    "https://api.openai.com/*",
+    "https://code.earthengine.google.com/*",
+    "https://*.earthengine.app/*",
+    "https://earthengine.googleapis.com/*"
+  ],
   "side_panel": {
     "default_path": "sidepanel.html"
   }
