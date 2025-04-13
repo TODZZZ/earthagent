@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const copyBtn = document.getElementById('copyBtn');
   const clearBtn = document.getElementById('clearBtn');
   const injectCodeBtn = document.getElementById('injectCodeBtn');
+  const runInEarthEngineBtn = document.getElementById('runInEarthEngineBtn');
   const spinner = document.getElementById('spinner');
   
   // Global variables
@@ -122,6 +123,172 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   });
+  
+  // Run the code in Earth Engine UI by clicking the GEE run button
+  runInEarthEngineBtn.addEventListener('click', function() {
+    // Skip generating code, just click the run button in Google Earth Engine
+    
+    // Show spinner while processing
+    runInEarthEngineBtn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    // Get the active tab
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      const activeTab = tabs[0];
+      
+      // Check if we're on the Earth Engine Code Editor page
+      if (activeTab && activeTab.url && activeTab.url.startsWith(EARTH_ENGINE_EDITOR_URL)) {
+        // Click run button directly without injecting code
+        clickEarthEngineRunButton(activeTab.id);
+        finishRunOperation();
+      } else {
+        // If not on Earth Engine, open a new tab
+        chrome.tabs.create({url: EARTH_ENGINE_EDITOR_URL}, function(newTab) {
+          // Wait for the page to load before clicking run button
+          chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+            if (tabId === newTab.id && changeInfo.status === 'complete') {
+              // Remove the listener to avoid multiple clicks
+              chrome.tabs.onUpdated.removeListener(listener);
+              
+              // Wait for the Earth Engine editor to initialize
+              waitForEarthEngineRunButton(newTab.id, () => {
+                finishRunOperation();
+              });
+            }
+          });
+        });
+      }
+    });
+  });
+  
+  // Function to wait specifically for the run button to be available
+  function waitForEarthEngineRunButton(tabId, callback) {
+    const MAX_ATTEMPTS = 20;
+    const ATTEMPT_INTERVAL = 1000; 
+    let attempts = 0;
+    
+    const checkInterval = setInterval(() => {
+      attempts++;
+      
+      if (attempts > MAX_ATTEMPTS) {
+        clearInterval(checkInterval);
+        alert('Could not find the Earth Engine run button after multiple attempts. Please make sure Earth Engine is fully loaded and try again.');
+        if (callback) callback(false);
+        return;
+      }
+      
+      // Check if run button is ready
+      chrome.scripting.executeScript({
+        target: {tabId: tabId},
+        func: () => {
+          try {
+            // Find the run button with class "goog-button run-button"
+            return document.querySelector('.goog-button.run-button') !== null;
+          } catch (error) {
+            console.error('Error checking for run button:', error);
+            return false;
+          }
+        }
+      })
+      .then(results => {
+        if (results && results[0] && results[0].result === true) {
+          clearInterval(checkInterval);
+          console.log(`Earth Engine run button found after ${attempts} attempts`);
+          
+          // Now click the run button
+          clickEarthEngineRunButton(tabId);
+          if (callback) callback(true);
+        } else {
+          console.log(`Waiting for Earth Engine run button (attempt ${attempts}/${MAX_ATTEMPTS})...`);
+        }
+      })
+      .catch(err => {
+        console.error('Error checking for run button:', err);
+      });
+    }, ATTEMPT_INTERVAL);
+  }
+  
+  // Function to reset the UI after run operation
+  function finishRunOperation() {
+    runInEarthEngineBtn.disabled = false;
+    spinner.style.display = 'none';
+  }
+  
+  // Function to click the Google Earth Engine run button
+  function clickEarthEngineRunButton(tabId) {
+    chrome.scripting.executeScript({
+      target: {tabId: tabId},
+      func: () => {
+        try {
+          // Find the run button with class "goog-button run-button"
+          const runButton = document.querySelector('.goog-button.run-button');
+          if (runButton) {
+            console.log('Found Earth Engine run button, clicking it');
+            runButton.click();
+            return true;
+          } else {
+            console.error('Earth Engine run button not found');
+            return false;
+          }
+        } catch (error) {
+          console.error('Error clicking Earth Engine run button:', error);
+          return false;
+        }
+      }
+    })
+    .then((results) => {
+      if (results && results[0] && results[0].result === true) {
+        console.log('Successfully clicked the Earth Engine run button');
+      } else {
+        console.error('Failed to click the Earth Engine run button');
+        alert('Failed to run code. The Earth Engine run button might not be available yet.');
+      }
+    })
+    .catch(err => {
+      console.error('Error executing script to click Earth Engine run button:', err);
+    });
+  }
+  
+  // Function to reset the UI after run operation
+  function finishRunOperation() {
+    runInEarthEngineBtn.disabled = false;
+    spinner.style.display = 'none';
+  }
+  
+  // Function to click the Google Earth Engine run button
+  function clickEarthEngineRunButton(tabId) {
+    chrome.scripting.executeScript({
+      target: {tabId: tabId},
+      func: () => {
+        try {
+          // Find the run button with class "goog-button run-button"
+          const runButton = document.querySelector('.goog-button.run-button');
+          if (runButton) {
+            console.log('Found Earth Engine run button, clicking it');
+            runButton.click();
+            return true;
+          } else {
+            console.error('Earth Engine run button not found');
+            return false;
+          }
+        } catch (error) {
+          console.error('Error clicking Earth Engine run button:', error);
+          return false;
+        }
+      }
+    })
+    .then((results) => {
+      if (results && results[0] && results[0].result === true) {
+        console.log('Successfully clicked the Earth Engine run button');
+      } else {
+        console.error('Failed to click the Earth Engine run button');
+        alert('Failed to run code. The Earth Engine run button might not be available yet. Try again after a few seconds.');
+      }
+    })
+    .catch(err => {
+      console.error('Error executing script to click Earth Engine run button:', err);
+    });
+  }
   
   // Callback function to reset UI after injection attempt
   function finishInjection(success) {
