@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Earth Engine Code Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 12px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      color: #333;
+    }
+    h1 {
+      color: #4285f4;
+      font-size: 16px;
+      margin-top: 0;
+      margin-bottom: 15px;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    label {
+      font-weight: bold;
+      margin-bottom: 5px;
+      display: block;
+      font-size: 13px;
+    }
+    textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      resize: none;
+      box-sizing: border-box;
+    }
+    #apiKeySection {
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    #apiKey {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+    #prompt {
+      flex: 0 0 80px; /* Fixed size */
+    }
+    #codeOutput {
+      flex: 1; /* Fill remaining space */
+      margin-top: 10px;
+      background-color: #f5f5f5;
+      font-family: monospace;
+      white-space: pre;
+      overflow: auto;
+    }
+    button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+    button:hover {
+      background-color: #3367d6;
+    }
+    .spinner {
+      display: none;
+      margin-left: 10px;
+      vertical-align: middle;
+      border: 3px solid rgba(0,0,0,0.1);
+      border-radius: 50%;
+      border-top: 3px solid #4285f4;
+      width: 12px;
+      height: 12px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .button-row {
+      display: flex;
+      justify-content: space-between;
+    }
+    .section {
+      margin-bottom: 15px;
+    }
+    .output-section {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .toggle-label {
+      margin-left: 8px;
+      font-size: 13px;
+      font-weight: normal;
+    }
+    .toggle {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+    }
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .toggle-slider {
+      background-color: #4285f4;
+    }
+    input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+    .status-indicator {
+      display: none;
+      font-size: 12px;
+      font-style: italic;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Earth Engine Code Generator</h1>
+  
+  <div class="container">
+    <div id="apiKeySection" class="section">
+      <label for="apiKey">OpenAI API Key:</label>
+      <input type="password" id="apiKey" placeholder="Enter your OpenAI API key">
+      <button id="saveApiKey">Save Key</button>
+    </div>
+    
+    <div class="section">
+      <label for="prompt">Describe the Earth Engine code you need:</label>
+      <textarea id="prompt" placeholder="Example: 'Create a NDVI visualization for Landsat 8 imagery over San Francisco for the year 2022'"></textarea>
+      <div class="toggle-container">
+        <label class="toggle">
+          <input type="checkbox" id="validationToggle">
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Use Pydantic validation for JavaScript code</span>
+      </div>
+      <div id="validationStatus" class="status-indicator">
+        Validation server status: <span id="statusText">Checking...</span>
+      </div>
+      <button id="generateBtn">Generate Code <span id="spinner" class="spinner"></span></button>
+    </div>
+    
+    <div class="output-section">
+      <label for="codeOutput">Generated Earth Engine Code:</label>
+      <textarea id="codeOutput" readonly></textarea>
+      <div class="button-row">
+        <button id="copyBtn">Copy to Clipboard</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="config.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html> 

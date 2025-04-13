@@ -12,19 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The value that will be written to the clipboard.
-const textToCopy = `Hello world!`;
+// Initialize the sidepanel to open when the action button is clicked
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((error) => console.error("Error setting panel behavior:", error));
 
-// When the browser action is clicked, `addToClipboard()` will use an offscreen
-// document to write the value of `textToCopy` to the system clipboard.
-chrome.action.onClicked.addListener(async () => {
-  await addToClipboard(textToCopy);
+// Handle messages from the sidepanel
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'copy-to-clipboard') {
+    addToClipboard(message.data);
+  }
 });
 
-// Solution 1 - As of Jan 2023, service workers cannot directly interact with
-// the system clipboard using either `navigator.clipboard` or
-// `document.execCommand()`. To work around this, we'll create an offscreen
-// document and pass it the data we want to write to the clipboard.
+// When the action button is clicked, the sidepanel will automatically open
+// thanks to the setPanelBehavior above, so we don't need this listener anymore
+// chrome.action.onClicked.addListener(async (tab) => {
+//   // Open the side panel
+//   await chrome.sidePanel.open({ tabId: tab.id });
+//   // Set sidepanel as default for current window
+//   await chrome.sidePanel.setOptions({
+//     enabled: true
+//   });
+// });
+
+// Use an offscreen document to write to the system clipboard
 async function addToClipboard(value) {
   await chrome.offscreen.createDocument({
     url: 'offscreen.html',

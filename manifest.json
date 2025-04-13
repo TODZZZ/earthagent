@@ -1,11 +1,22 @@
 {
-  "name": "Offscreen API - Clipboard",
+  "name": "Earth Engine Code Generator",
   "version": "1.0",
   "manifest_version": 3,
-  "description": "Shows how to write a string to the system clipboard using the offscreen document.",
+  "description": "Generate Google Earth Engine JavaScript code using OpenAI",
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
-  "action": {},
-  "permissions": ["offscreen", "clipboardWrite"]
+  "action": {
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  },
+  "permissions": ["offscreen", "clipboardWrite", "storage", "sidePanel"],
+  "host_permissions": ["https://api.openai.com/*"],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
 }
