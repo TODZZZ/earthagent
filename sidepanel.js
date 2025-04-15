@@ -10,6 +10,21 @@ document.addEventListener('DOMContentLoaded', function() {
   const runInEarthEngineBtn = document.getElementById('runInEarthEngineBtn');
   const spinner = document.getElementById('spinner');
   
+  // Create separate spinners for each operation
+  const generateSpinner = spinner; // Use the existing spinner for generate operation
+  
+  // Create new spinner for inject operation
+  const injectSpinner = document.createElement('span');
+  injectSpinner.className = 'spinner';
+  injectSpinner.style.display = 'none';
+  injectCodeBtn.parentNode.insertBefore(injectSpinner, injectCodeBtn.nextSibling);
+  
+  // Create new spinner for run operation
+  const runSpinner = document.createElement('span');
+  runSpinner.className = 'spinner';
+  runSpinner.style.display = 'none';
+  runInEarthEngineBtn.parentNode.insertBefore(runSpinner, runInEarthEngineBtn.nextSibling);
+  
   // Global variables
   const EARTH_ENGINE_EDITOR_URL = 'https://code.earthengine.google.com/';
   
@@ -60,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Show spinner
-    spinner.style.display = 'inline-block';
+    generateSpinner.style.display = 'inline-block';
     generateBtn.disabled = true;
     
     // Call OpenAI API
@@ -73,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
       })
       .finally(() => {
         // Hide spinner
-        spinner.style.display = 'none';
+        generateSpinner.style.display = 'none';
         generateBtn.disabled = false;
       });
   });
@@ -95,19 +110,104 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Show spinner while injecting
+    injectSpinner.style.display = 'inline-block';
     injectCodeBtn.disabled = true;
-    spinner.style.display = 'inline-block';
     
     // Get the active tab
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
       const activeTab = tabs[0];
       
+      // Function to directly inject the code
+      const injectCode = (tabId) => {
+        chrome.scripting.executeScript({
+          target: {tabId: tabId},
+          func: (codeToInject) => {
+            try {
+              // SIMPLE DIRECT APPROACH - Only use the most reliable method
+              console.log("Attempting to inject code into Earth Engine editor");
+              
+              // Method 1: Direct ACE Editor manipulation
+              const editorElement = document.querySelector('.ace_editor');
+              if (!editorElement) {
+                console.error("Could not find ACE editor");
+                return {success: false, message: "Could not find editor"};
+              }
+              
+              // Try to get the textarea input
+              const textInput = document.querySelector('.ace_text-input');
+              if (textInput) {
+                console.log("Found text input, focusing and setting value");
+                textInput.focus();
+                
+                // Use execCommand for reliable insertion
+                document.execCommand('selectAll', false, null);
+                document.execCommand('insertText', false, codeToInject);
+                return {success: true, message: "Code injected via text input"};
+              }
+              
+              // Fallback to ACE API if available
+              if (window.ace) {
+                try {
+                  console.log("Using ACE API");
+                  const editor = window.ace.edit(editorElement);
+                  editor.setValue(codeToInject);
+                  editor.clearSelection();
+                  return {success: true, message: "Code injected via ACE API"};
+                } catch (e) {
+                  console.error("Error using ACE API", e);
+                }
+              }
+              
+              // Last resort: direct DOM manipulation
+              const textLayer = document.querySelector('.ace_text-layer');
+              if (textLayer) {
+                console.log("Manipulating DOM directly");
+                textLayer.innerHTML = '';
+                const lines = codeToInject.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                  const lineDiv = document.createElement('div');
+                  lineDiv.className = 'ace_line';
+                  lineDiv.textContent = lines[i] || ' ';
+                  textLayer.appendChild(lineDiv);
+                }
+                return {success: true, message: "Code injected via DOM"};
+              }
+              
+              return {success: false, message: "All methods failed"};
+            } catch (error) {
+              console.error("Error injecting code:", error);
+              return {success: false, message: error.toString()};
+            }
+          },
+          args: [code]
+        }).then(results => {
+          if (results && results[0] && results[0].result && results[0].result.success) {
+            console.log("Injection successful:", results[0].result.message);
+            alert("Code injected successfully!");
+          } else {
+            console.error("Injection failed:", results && results[0] && results[0].result ? results[0].result.message : "Unknown error");
+            alert("Failed to inject code. Try copying and pasting manually.");
+          }
+          
+          // Reset UI
+          injectSpinner.style.display = 'none';
+          injectCodeBtn.disabled = false;
+        }).catch(err => {
+          console.error("Error executing script:", err);
+          alert("Error: " + err.message);
+          
+          // Reset UI
+          injectSpinner.style.display = 'none';
+          injectCodeBtn.disabled = false;
+        });
+      };
+      
       // Check if we're on the Earth Engine Code Editor page
       if (activeTab && activeTab.url && activeTab.url.startsWith(EARTH_ENGINE_EDITOR_URL)) {
-        // Inject the code into the Earth Engine editor
-        waitForEarthEngineEditor(activeTab.id, code, finishInjection);
+        // Already on GEE, inject directly
+        injectCode(activeTab.id);
       } else {
-        // If not on Earth Engine, open a new tab
+        // Not on GEE, open a new tab and wait for it to load
         chrome.tabs.create({url: EARTH_ENGINE_EDITOR_URL}, function(newTab) {
           // Wait for the page to load before injecting
           chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
@@ -115,8 +215,10 @@ document.addEventListener('DOMContentLoaded', function() {
               // Remove the listener to avoid multiple injections
               chrome.tabs.onUpdated.removeListener(listener);
               
-              // Wait longer for the Earth Engine editor to initialize
-              waitForEarthEngineEditor(newTab.id, code, finishInjection);
+              // Wait 3 seconds for Earth Engine to initialize
+              setTimeout(() => {
+                injectCode(newTab.id);
+              }, 3000);
             }
           });
         });
@@ -129,8 +231,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Skip generating code, just click the run button in Google Earth Engine
     
     // Show spinner while processing
+    runSpinner.style.display = 'inline-block';
     runInEarthEngineBtn.disabled = true;
-    spinner.style.display = 'inline-block';
     
     // Get the active tab
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
@@ -210,49 +312,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Function to reset the UI after run operation
   function finishRunOperation() {
+    runSpinner.style.display = 'none';
     runInEarthEngineBtn.disabled = false;
-    spinner.style.display = 'none';
-  }
-  
-  // Function to click the Google Earth Engine run button
-  function clickEarthEngineRunButton(tabId) {
-    chrome.scripting.executeScript({
-      target: {tabId: tabId},
-      func: () => {
-        try {
-          // Find the run button with class "goog-button run-button"
-          const runButton = document.querySelector('.goog-button.run-button');
-          if (runButton) {
-            console.log('Found Earth Engine run button, clicking it');
-            runButton.click();
-            return true;
-          } else {
-            console.error('Earth Engine run button not found');
-            return false;
-          }
-        } catch (error) {
-          console.error('Error clicking Earth Engine run button:', error);
-          return false;
-        }
-      }
-    })
-    .then((results) => {
-      if (results && results[0] && results[0].result === true) {
-        console.log('Successfully clicked the Earth Engine run button');
-      } else {
-        console.error('Failed to click the Earth Engine run button');
-        alert('Failed to run code. The Earth Engine run button might not be available yet.');
-      }
-    })
-    .catch(err => {
-      console.error('Error executing script to click Earth Engine run button:', err);
-    });
-  }
-  
-  // Function to reset the UI after run operation
-  function finishRunOperation() {
-    runInEarthEngineBtn.disabled = false;
-    spinner.style.display = 'none';
   }
   
   // Function to click the Google Earth Engine run button
@@ -288,292 +349,6 @@ document.addEventListener('DOMContentLoaded', function() {
     .catch(err => {
       console.error('Error executing script to click Earth Engine run button:', err);
     });
-  }
-  
-  // Callback function to reset UI after injection attempt
-  function finishInjection(success) {
-    injectCodeBtn.disabled = false;
-    spinner.style.display = 'none';
-    
-    if (success) {
-      // Update with success message
-      console.log('Code successfully injected into Earth Engine editor');
-    }
-  }
-  
-  // Wait for Earth Engine editor to be fully loaded
-  function waitForEarthEngineEditor(tabId, code, callback) {
-    const MAX_ATTEMPTS = 30; // Try for up to 30 seconds
-    const ATTEMPT_INTERVAL = 1000; // Check every second
-    let attempts = 0;
-    
-    // First check if user is authenticated
-    checkEarthEngineAuth(tabId).then(isAuthenticated => {
-      if (!isAuthenticated) {
-        alert('Please sign in to Earth Engine first. After signing in, try injecting the code again.');
-        if (callback) callback(false);
-        return;
-      }
-      
-      // Start checking for editor readiness
-      const checkInterval = setInterval(() => {
-        attempts++;
-        
-        if (attempts > MAX_ATTEMPTS) {
-          clearInterval(checkInterval);
-          alert('Could not find the Earth Engine editor after multiple attempts. Please make sure Earth Engine is fully loaded and try again.');
-          if (callback) callback(false);
-          return;
-        }
-        
-        // Check if editor is ready
-        chrome.scripting.executeScript({
-          target: {tabId: tabId},
-          func: isEarthEngineEditorReady
-        })
-        .then(results => {
-          if (results && results[0] && results[0].result === true) {
-            clearInterval(checkInterval);
-            console.log(`Earth Engine editor found after ${attempts} attempts`);
-            
-            // Now try to inject the code
-            injectCodeIntoEditor(tabId, code, callback);
-          } else {
-            console.log(`Waiting for Earth Engine editor (attempt ${attempts}/${MAX_ATTEMPTS})...`);
-          }
-        })
-        .catch(err => {
-          console.error('Error checking for editor:', err);
-        });
-      }, ATTEMPT_INTERVAL);
-    });
-  }
-  
-  // Check if Earth Engine editor is ready
-  function isEarthEngineEditorReady() {
-    try {
-      // Check for various editor elements
-      const aceEditors = document.querySelectorAll('.ace_editor');
-      const codeMirrors = document.querySelectorAll('.CodeMirror');
-      const earthEngineApp = document.querySelector('#playground-contents');
-      const codeEditor = document.querySelector('#code-editor');
-      
-      // Look for the playground-specific elements
-      if (earthEngineApp && (aceEditors.length > 0 || codeMirrors.length > 0 || codeEditor)) {
-        // Additional check: make sure the page has fully rendered
-        const loadingIndicator = document.querySelector('.loading-indicator');
-        if (loadingIndicator && loadingIndicator.style.display !== 'none') {
-          return false; // Still loading
-        }
-        
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Error checking editor readiness:', error);
-      return false;
-    }
-  }
-  
-  // Check if the user is authenticated in Earth Engine
-  function checkEarthEngineAuth(tabId) {
-    return new Promise((resolve) => {
-      chrome.scripting.executeScript({
-        target: {tabId: tabId},
-        func: () => {
-          try {
-            // Check for login-related elements
-            const isSignInPage = document.querySelector('.signin-panel') !== null;
-            const needsAuth = document.querySelector('.goog-buttonset-default') !== null && 
-                            document.querySelector('.signin-panel') !== null;
-            
-            // If we detect sign-in elements, the user is not authenticated
-            return !needsAuth && !isSignInPage;
-          } catch (e) {
-            console.error('Error checking auth:', e);
-            return false; // Assume not authenticated if we can't check
-          }
-        }
-      })
-      .then(results => {
-        if (results && results[0]) {
-          resolve(results[0].result);
-        } else {
-          resolve(false);
-        }
-      })
-      .catch(err => {
-        console.error('Error checking authentication:', err);
-        resolve(false);
-      });
-    });
-  }
-  
-  // Function to inject code into the Earth Engine editor
-  function injectCodeIntoEditor(tabId, code, callback) {
-    // Inject script to write to the Earth Engine Code Editor
-    chrome.scripting.executeScript({
-      target: {tabId: tabId},
-      func: injectCodeFunction,
-      args: [code]
-    })
-    .then((results) => {
-      if (results && results[0] && results[0].result === true) {
-        console.log('Code injected successfully');
-        if (callback) callback(true);
-      } else {
-        console.error('Failed to inject code');
-        alert('Failed to inject code. The editor might be in a different state than expected. Try again or use the copy button instead.');
-        if (callback) callback(false);
-      }
-    })
-    .catch(err => {
-      console.error('Error injecting code:', err);
-      if (callback) callback(false);
-      alert('Failed to inject code: ' + err.message);
-    });
-  }
-  
-  // Function that runs in the context of the Earth Engine tab
-  function injectCodeFunction(code) {
-    try {
-      console.log("Attempting to inject code into Earth Engine editor");
-      
-      // Method 1: Try to use the CodeEditor directly if it exists in window
-      if (window.Code && window.Code.setCode) {
-        console.log("Using Code.setCode method");
-        window.Code.setCode(code);
-        return true;
-      }
-      
-      // Method 2: Try ACE editor
-      const aceEditors = document.querySelectorAll('.ace_editor');
-      if (aceEditors.length > 0) {
-        console.log("Found ACE editor, attempting to use it");
-        
-        // Try multiple ways to get the editor instance
-        for (const editorElement of aceEditors) {
-          // Try the common ways to access Ace editor
-          try {
-            const aceEditor = editorElement.env?.editor || 
-                            window.ace?.edit(editorElement) || 
-                            editorElement.aceEditor;
-            
-            if (aceEditor && typeof aceEditor.setValue === 'function') {
-              console.log("Found valid Ace editor instance");
-              aceEditor.setValue(code);
-              aceEditor.clearSelection();
-              return true;
-            }
-          } catch (e) {
-            console.warn("Error accessing Ace editor:", e);
-          }
-        }
-      }
-      
-      // Method 3: Try CodeMirror
-      const codeMirrors = document.querySelectorAll('.CodeMirror');
-      if (codeMirrors.length > 0) {
-        console.log("Found CodeMirror, attempting to use it");
-        
-        for (const cm of codeMirrors) {
-          if (cm.CodeMirror) {
-            cm.CodeMirror.setValue(code);
-            return true;
-          }
-        }
-      }
-      
-      // Method 4: Try to find the script editor textarea
-      const scriptTextareas = document.querySelectorAll('textarea.ace_text-input, textarea.code-editor');
-      if (scriptTextareas.length > 0) {
-        console.log("Found script textarea, using direct input");
-        
-        const textarea = scriptTextareas[0];
-        textarea.focus();
-        textarea.value = code;
-        
-        // Try to trigger change events
-        const event = new Event('input', { bubbles: true });
-        textarea.dispatchEvent(event);
-        
-        return true;
-      }
-      
-      // Method 5: Look for Earth Engine specific elements and try to find editor
-      const codeEditor = document.getElementById('code-editor');
-      if (codeEditor) {
-        console.log("Found code-editor element, trying to access editor");
-        
-        // Try to get any available code editor from global variables
-        const possibleEditorVars = [
-          'earthEngineCodeEditor', 
-          'codeEditor', 
-          'editor',
-          'playground'
-        ];
-        
-        for (const varName of possibleEditorVars) {
-          if (window[varName] && typeof window[varName].setValue === 'function') {
-            console.log(`Found editor in window.${varName}`);
-            window[varName].setValue(code);
-            return true;
-          }
-        }
-        
-        // If we found the element but couldn't get the editor instance
-        // try to inject code via DOM manipulation
-        try {
-          // Try to find any visible editor content
-          const editorContent = codeEditor.querySelector('.ace_content, .CodeMirror-code');
-          if (editorContent) {
-            // Use exec command as a last resort
-            document.execCommand('selectAll', false, null);
-            document.execCommand('delete', false, null);
-            document.execCommand('insertText', false, code);
-            return true;
-          }
-        } catch (e) {
-          console.warn("DOM manipulation failed:", e);
-        }
-      }
-      
-      // Method 6: Ultimate fallback - try to simulate keyboard input
-      try {
-        console.log("Using clipboard and keyboard simulation as last resort");
-        // Copy to clipboard
-        const originalClipboard = navigator.clipboard.readText();
-        navigator.clipboard.writeText(code);
-        
-        // Try to find any editor element to focus
-        const focusTargets = document.querySelectorAll('.ace_editor, .CodeMirror, #code-editor, .ace_text-input');
-        if (focusTargets.length > 0) {
-          focusTargets[0].focus();
-          
-          // Simulate Ctrl+A and then Ctrl+V
-          document.execCommand('selectAll');
-          document.execCommand('paste');
-          
-          // Restore original clipboard
-          setTimeout(() => {
-            if (originalClipboard) {
-              navigator.clipboard.writeText(originalClipboard);
-            }
-          }, 500);
-          
-          return true;
-        }
-      } catch (e) {
-        console.warn("Clipboard fallback failed:", e);
-      }
-      
-      console.error("All injection methods failed");
-      return false;
-    } catch (error) {
-      console.error('Error injecting into editor:', error);
-      return false;
-    }
   }
   
   // Clear the output
