@@ -17,7 +17,7 @@
   "permissions": [
     "offscreen", 
     "clipboardWrite", 
-    "storage", 
+    "storage",
     "sidePanel", 
     "scripting",
     "tabs",
@@ -28,8 +28,12 @@
     "https://api.openai.com/*",
     "https://code.earthengine.google.com/*",
     "https://*.earthengine.app/*",
-    "https://earthengine.googleapis.com/*"
+    "https://earthengine.googleapis.com/*",
+    "https://raw.githubusercontent.com/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "side_panel": {
     "default_path": "sidepanel.html"
   }

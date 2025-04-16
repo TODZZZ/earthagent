@@ -63,6 +63,8 @@
       font-family: monospace;
       white-space: pre;
       overflow: auto;
+      padding: 10px;
+      line-height: 1.4;
     }
     button {
       background-color: #4285f4;
@@ -96,6 +98,13 @@
       display: flex;
       justify-content: space-between;
       flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    #buttonContainer {
+      display: flex;
+      justify-content: flex-start;
+      gap: 10px;
+      margin-top: 10px;
     }
     .section {
       margin-bottom: 15px;
@@ -106,22 +115,85 @@
       flex: 1;
       overflow: hidden;
     }
-    .action-button {
-      flex: 1;
-      margin: 5px;
-      max-width: calc(50% - 10px);
-    }
-    #injectCodeBtn {
-      background-color: #34a853;
-    }
-    #injectCodeBtn:hover {
-      background-color: #2d9348;
+    .btn {
+      flex: 0 0 auto;
     }
     #runInEarthEngineBtn {
-      background-color: #ea4335;
+      background-color:rgb(76, 221, 113);
     }
     #runInEarthEngineBtn:hover {
-      background-color: #d33426;
+      background-color:rgb(158, 255, 202);
+    }
+    #clearBtn {
+      background-color: #5f6368;
+    }
+    #clearBtn:hover {
+      background-color: #494c50;
+    }
+    .agent-section {
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed #ccc;
+    }
+    .dataset-item {
+      margin: 5px 0;
+      padding-left: 10px;
+      border-left: 3px solid #4285f4;
+    }
+    .dataset-browsing {
+      background-color: #e6f3ff;
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 4px;
+      border-left: 3px solid #4285f4;
+    }
+    .dataset-recommendation {
+      background-color: #e6ffe6;
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 4px;
+      border-left: 3px solid #34a853;
+    }
+    .dataset-analysis {
+      background-color: #fff9e6;
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 4px;
+      border-left: 3px solid #fbbc04;
+    }
+    .earth-agent-log {
+      font-style: italic;
+      color: #4285f4;
+      margin: 3px 0;
+    }
+    .keyword-highlight {
+      font-weight: bold;
+      color: #ea4335;
+    }
+    .code-generation {
+      background-color: #f5f5f5;
+      color: #0d652d;
+      font-weight: bold;
+      padding: 5px 0;
+    }
+    .analysis-section {
+      background-color: #eef5ff;
+      padding: 8px;
+      border-radius: 4px;
+      margin: 8px 0;
+    }
+    .section-title {
+      font-weight: bold;
+      color: #4285f4;
+      margin-bottom: 5px;
+    }
+    .processing-step {
+      color: #0d6efd;
+      font-weight: bold;
+    }
+    .success-indicator {
+      color: #198754;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -137,25 +209,25 @@
     
     <div class="section">
       <label for="prompt">Describe the Earth Engine code you need:</label>
-      <textarea id="prompt" placeholder="Example: 'Create a NDVI visualization for Landsat 8 imagery over San Francisco for the year 2022'"></textarea>
-      <button id="generateBtn">Generate Code <span id="spinner" class="spinner"></span></button>
+      <textarea id="prompt" placeholder="Example: 'Create an NDVI time series analysis for agricultural areas in California from 2018 to 2023'"></textarea>
+      <div id="buttonContainer">
+        <button id="generateBtn" class="btn">Generate Code</button>
+        <button id="clearBtn" class="btn">Clear</button>
+        <button id="runInEarthEngineBtn" class="btn">Run in Earth Engine</button>
+        <span id="spinner" class="spinner" style="display: none;"></span>
+      </div>
     </div>
     
     <div class="output-section">
       <label for="codeOutput">Generated Earth Engine Code:</label>
       <textarea id="codeOutput" readonly></textarea>
-      <div class="button-row">
-        <button id="copyBtn" class="action-button">Copy to Clipboard</button>
-        <button id="injectCodeBtn" class="action-button">Inject into Editor</button>
-        <button id="runInEarthEngineBtn" class="action-button">Run in Earth Engine</button>
-        <button id="clearBtn" class="action-button">Clear</button>
-      </div>
     </div>
   </div>
   
-  <!-- Use local Zod library file instead of CDN -->
-  <script src="lib/zod.min.js"></script>
-  <script src="config.js"></script>
-  <script src="sidepanel.js"></script>
+  <!-- Import necessary dependencies -->
+  <script src="./node_modules/zod/lib/index.umd.js"></script>
+  <script src="./config.js"></script>
+  <script src="./earthAgentBundle.js"></script>
+  <script src="./sidepanel.js"></script>
 </body>
 </html>

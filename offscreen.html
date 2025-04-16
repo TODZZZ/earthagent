@@ -1,3 +1,35 @@
-<!doctype html>
-<textarea id="text"></textarea>
-<script src="offscreen.js"></script>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Earth Engine Offscreen Document</title>
+  <script>
+    // Listen for messages from the background script
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.target === 'offscreen' && request.type === 'write-to-clipboard') {
+        // Write to the clipboard
+        try {
+          navigator.clipboard.writeText(request.data)
+            .then(() => {
+              console.log('Successfully wrote to clipboard from offscreen document');
+              sendResponse({ success: true });
+            })
+            .catch((error) => {
+              console.error('Error writing to clipboard from offscreen document:', error);
+              sendResponse({ success: false, error: error.message });
+            });
+        } catch (error) {
+          console.error('Error in offscreen clipboard operation:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+        return true; // Will respond asynchronously
+      }
+    });
+
+    // Log that the offscreen document is ready
+    console.log('Earth Engine offscreen document is ready for clipboard operations');
+  </script>
+</head>
+<body>
+  <!-- This document is used for clipboard operations -->
+</body>
+</html>
